@@ -13,20 +13,38 @@ namespace SocialPeople
     {
         static void Main(string[] args)
         {
-            var split = RemoveStopWords(@"Got home a few hours ago and already had to take Kermit to the vet. He's okay don't worry, it'll be in the vlog tonight. But poor guy 😭
+            var statuses = new TwitterParser("Jenna_Marbles",50).GetStatuses().Aggregate((i, j) => i + " " + j);
 
-Happy Thanksgiving! Spending the day cooking and laughing and hugging dogs and being infinitely grateful. 🐩🐩🐩🐩🐩🐩
+            //            var split = RemoveStopWords(@"Got home a few hours ago and already had to take Kermit to the vet. He's okay don't worry, it'll be in the vlog tonight. But poor guy 😭
 
-Video's up: Oops I'm In Tokyo https://www.youtube.com/watch?v=JW70oTiQbm8&feature=youtu.be …
+            //Happy Thanksgiving! Spending the day cooking and laughing and hugging dogs and being infinitely grateful. 🐩🐩🐩🐩🐩🐩
 
-I'm home now though, yayyyy happy thanksgiving!");
+            //Video's up: Oops I'm In Tokyo https://www.youtube.com/watch?v=JW70oTiQbm8&feature=youtu.be …
 
-            var x = GetNGrams(split,2);
-            var y = GetDictionary(x);
-            SetupNeuralNetwork(y);
+            //I'm home now though, yayyyy happy thanksgiving!");
+
+            var split = RemoveStopWords(statuses);
+            var ngrams = GetNGrams(split, 2);
+            var dict = GetDictionary(ngrams);
+
+            var sorted = from pair in dict
+                         orderby pair.Value descending
+                         select pair;
+
+            var d = new Dictionary<string, double>();
+            d.Add("jenna", 1);
+            SetupNeuralNetwork(dict, d);
+
+
+            if (true) ;
         }
 
-        static string[] STOP_WORDS = new string[26] { "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "he", "in", "is", "it", "its", "of", "on", "she", "that", "the", "to", "was", "were", "will", "with"};
+        static List<string> GetCombinedPhrases(params Dictionary<string,int>[] dicts)
+        {
+
+        }
+
+        static string[] STOP_WORDS = new string[] { "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "has", "he", "in", "is", "it", "its", "of", "on", "she", "so", "that", "the", "to", "was", "were", "will", "with"};
         static string[] RemoveStopWords(string input)
         {
             string spacesAdded = Regex.Replace(input, @"([^a-zA-Z0-9@#'\s])", " $0");
@@ -54,9 +72,9 @@ I'm home now though, yayyyy happy thanksgiving!");
             return ngrams.ToArray();
         }
 
-        static Dictionary<string,int> GetDictionary(string [] input)
+        static Dictionary<string,double> GetDictionary(string [] input)
         {
-            var dict = new Dictionary<string, int>();
+            var dict = new Dictionary<string, double>();
 
             foreach (var value in input)
             {
@@ -77,22 +95,25 @@ I'm home now though, yayyyy happy thanksgiving!");
             //    new double[] {1, 0}, new double[] {1, 1}
             //};
 
-            double[][] output = new double[4][] {
-                new double[] {0}, new double[] {1},
-                new double[] {1}, new double[] {0}
-            };
+            //double[][] output = new double[4][] {
+            //    new double[] {0}, new double[] {1},
+            //    new double[] {1}, new double[] {0}
+            //};
 
             double[] input = new double[wordsDict.Count];
             wordsDict.Values.CopyTo(input, 0);
             var max = Math.Max(input.Max(), .1);
             input.Select(i => i / max);
 
+            double[] output = new double[user.Count];
+            user.Values.CopyTo(output, 0);
+
             // create neural network
             ActivationNetwork network = new ActivationNetwork(
-                new SigmoidFunction(2),
-                2, // two inputs in the network
-                2, // two neurons in the first layer
-                1); // one neuron in the second layer
+                new SigmoidFunction(1),
+                input.Length, // two inputs in the network
+                (input.Length+output.Length)/2 + 1, // two neurons in the first layer
+                output.Length); // one neuron in the second layer
                     // create teacher
             BackPropagationLearning teacher = new BackPropagationLearning(network);
             // loop
@@ -100,12 +121,13 @@ I'm home now though, yayyyy happy thanksgiving!");
             while (error > .01)
             {
                 // run epoch of learning procedure
-                error = teacher.RunEpoch(input, output);
+                error = teacher.Run(input, output);
                 // check error value to see if we need to stop
                 // ...
             }
 
-            var t = network.Compute(new double[] { 0, 1 });
+            var t = network.Compute(input);
+            
             var f = network.Compute(new double[] { 1, 1 });
         }
     }
