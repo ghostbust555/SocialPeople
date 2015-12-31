@@ -15,8 +15,9 @@ namespace SocialPeople
 
         static void Main(string[] args)
         {
-            var jStatuses = new TwitterParser("Jenna_Marbles",10).GetStatuses().Aggregate((i, k) => i + " " + k);
-            var tStatuses = new TwitterParser("taylorswift13", 10).GetStatuses().Aggregate((i, k) => i + " " + k);
+            var jStatuses = new TwitterParser("Jenna_Marbles", 50).GetStatuses().Aggregate((i, k) => i + " " + k);
+            var tStatuses = new TwitterParser("taylorswift13", 50).GetStatuses().Aggregate((i, k) => i + " " + k);
+            var kkStatuses = new TwitterParser("KimKardashian", 50).GetStatuses().Aggregate((i, k) => i + " " + k);
 
             //            var split = RemoveStopWords(@"Got home a few hours ago and already had to take Kermit to the vet. He's okay don't worry, it'll be in the vlog tonight. But poor guy 😭
             //Happy Thanksgiving! Spending the day cooking and laughing and hugging dogs and being infinitely grateful. 🐩🐩🐩🐩🐩🐩
@@ -25,30 +26,43 @@ namespace SocialPeople
 
             var jSplit = RemoveStopWords(jStatuses);
             var tSplit = RemoveStopWords(tStatuses);
+            var kkSplit = RemoveStopWords(kkStatuses);
+
             var jNgrams = GetNGrams(jSplit, 3);
             var tNgrams = GetNGrams(tSplit, 3);
+            var kkNgrams = GetNGrams(kkSplit, 3);
+
             var jDict = GetDictionary(jNgrams);
             var tDict = GetDictionary(tNgrams);
+            var kkDict = GetDictionary(kkNgrams);
 
-            var combined = GetCombinedPhrases(jDict, tDict);
+            var combined = GetCombinedPhrases(jDict, tDict, kkDict);
 
             var j = new Dictionary<string, double>();
 
             j.Add("jenna", 1);
             j.Add("tswift", 0);
+            j.Add("kkard", 0);
 
             var t = new Dictionary<string, double>();
 
             t.Add("jenna", 0);
             t.Add("tswift", 1);
+            t.Add("kkard", 0);
+
+            var kk = new Dictionary<string, double>();
+
+            kk.Add("jenna", 0);
+            kk.Add("tswift", 0);
+            kk.Add("kkard", 1);
 
             network = CreateNetwork(combined.Count, t.Count);           
             
-            var err = TrainNeuralNetwork(combined, new Dictionary<string, double>[2] { jDict, tDict }, new Dictionary<string, double>[2] { j, t });
+            var err = TrainNeuralNetwork(combined, new Dictionary<string, double>[] { jDict, tDict, kkDict }, new Dictionary<string, double>[] { j, t, kk });
 
-            var kStatuses = new TwitterParser("k1mberrito", 10).GetStatuses().Aggregate((i, k) => i + " " + k);
+            var kStatuses = new TwitterParser("k1mberrito", 50).GetStatuses().Aggregate((i, k) => i + " " + k);
             var kSplit = RemoveStopWords(kStatuses);
-            var kNgrams = GetNGrams(kSplit, 3);
+            var kNgrams = GetNGrams(kSplit, 1); 
             var kDict = GetDictionary(kNgrams);
 
             var output = FireNetwork(combined, kDict);
@@ -93,7 +107,8 @@ namespace SocialPeople
             return new ActivationNetwork(
                 new SigmoidFunction(1),
                 inputs, 
-                (inputs + outputs) / 2 + 1, 
+                inputs/2,
+                outputs*4,
                 outputs);
         }
 
@@ -165,8 +180,15 @@ namespace SocialPeople
             foreach (var inputList in tempIn)
             {
                 var input = inputList.ToArray();
-                var max = Math.Max(input.Max(), 1);                
-                tempIn[j] = input.Select(i => i / max).ToArray();
+                double sum = 0;
+                foreach(var num in input)
+                {
+                    sum += num*num;
+                }
+                var norm = Math.Max(Math.Sqrt(sum)/2, 1);  
+                input = input.Select(i => (i / norm)).ToArray();
+                var max = input.Max()/4.0; 
+                tempIn[j] = input.Select(i => (i - max)).ToArray();
                 j++;
             }
 
@@ -180,10 +202,12 @@ namespace SocialPeople
             }
             
             BackPropagationLearning teacher = new BackPropagationLearning(network);
+            teacher.LearningRate = .2;
+            teacher.Momentum = .1;
             // loop
             double error = 100;
             int count = 1;
-            while (error > .01 && count < 100000)
+            while (error > .01 && count < 50000)
             {
                 // run epoch of learning procedure
                 error = teacher.RunEpoch(tempIn, output);                
